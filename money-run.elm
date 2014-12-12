@@ -58,6 +58,15 @@ isGrounded w =
        (lh, rh) = (columnToHeight lc, columnToHeight rc)
    in p.y <= lh || p.y <= rh
 
+canMoveInto : Float -> Int -> World -> Bool
+canMoveInto dt dx w =
+  let p = w.player
+      (lb, rb) = playerColumns { p | x <- xUpdatedByVx dt (toFloat dx) p } w.blocks
+      (lh, rh) = (columnToHeight lb, columnToHeight rb)
+  in if | dx < 0 -> lh <= p.y
+        | dx > 0 -> rh <= p.y
+        | otherwise -> True
+
 type alias World = {
     startx : Float
   , player : Player
@@ -119,9 +128,10 @@ updatePlayer f w =
       p' = f p
   in { w | player <- p' }
 
-walkp : Arrows -> Player -> Player
-walkp {x} p =
-  let leftOfScreen  = p.x - playerWidth / 2 <= -screenWidth / 2
+walk' : Arrows -> Float -> World -> Player
+walk' {x} dt w =
+  let p = w.player
+      leftOfScreen  = p.x - playerWidth / 2 <= -screenWidth / 2
       rightOfScreen = p.x + playerWidth / 2 >=  screenWidth / 2
   in { p |
     x <- if | leftOfScreen  -> -screenWidth / 2 + playerWidth / 2
@@ -129,10 +139,11 @@ walkp {x} p =
             | otherwise -> p.x,
     vx <- if | leftOfScreen && x < 0 -> 0
              | rightOfScreen && x > 0 -> 0
+             | not <| canMoveInto dt x w -> 0
              | otherwise -> toFloat x }
 
-walk : Arrows -> World -> World
-walk arrows = updatePlayer (walkp arrows)
+walk : Arrows -> Float -> World -> World
+walk arrows dt w = { w | player <- walk' arrows dt w }
 
 jump : Arrows -> World -> World
 jump {y} w = updatePlayer
@@ -152,15 +163,18 @@ isFallingThroughFloor : World -> Bool
 isFallingThroughFloor w =
   let p = w.player in isGrounded w && p.vy < 0
 
+xUpdatedByVx : Float -> Float -> Player -> Float
+xUpdatedByVx dt vx p = p.x + vx * dvx * dt
+
 physics : Float -> World -> World
 physics dt w = updatePlayer
-  (\p -> { p | x <- p.x + p.vx * dvx * dt,
+  (\p -> { p | x <- xUpdatedByVx dt p.vx p,
                y <- updatedY dt w,
                vy <- if isFallingThroughFloor w then 0 else p.vy }) w
 
 step : (Float, Arrows) -> World -> World
 step (dt, keys) =
-  walk keys >> jump keys >> gravity dt >> physics dt
+  walk keys dt >> jump keys >> gravity dt >> physics dt
 
 -- RENDERING -------------------------------------------------------------------
 
