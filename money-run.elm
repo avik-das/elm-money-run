@@ -61,10 +61,15 @@ generateBlocks' g s n blocks =
      | otherwise -> let (blocks', s') = newBlock g s blocks
                     in generateBlocks' g s' (n - 1) blocks'
 
+safeLast : a -> List a -> a
+safeLast z = foldl (\x y -> x) z
+
 newBlock : Generator Int -> Seed -> List Int -> (List Int, Seed)
 newBlock g s blocks =
   let (b, s') = generate g s
-  in (blocks ++ [b], s')
+      lastBlock = safeLast 0 blocks
+      b' = if b - lastBlock > 4 then lastBlock + 4 else b
+  in (blocks ++ [b'], s')
 
 type alias Arrows = {
     x : Int
