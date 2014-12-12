@@ -4,6 +4,8 @@ import Color (..)
 import Keyboard
 import Time (..)
 import Signal
+import Random (..)
+import List (..)
 
 -- MODEL -----------------------------------------------------------------------
 
@@ -16,8 +18,8 @@ type alias Player = {
 
 startPlayer : Player
 startPlayer = {
-    x = 100
-  , y = 50
+    x = -screenWidth / 2 + blockWidth + playerWidth / 2
+  , y = screenHeight / 2
   , vx = 0
   , vy = 0
   }
@@ -26,15 +28,43 @@ isGrounded : Player -> Bool
 isGrounded { y } = y <= bottomY
 
 type alias World = {
-    startx : Float,
-    player : Player
+    startx : Float
+  , player : Player
+  , blocksGenerator : Generator Int
+  , blocks : List Int
+  , blocksSeed : Seed
   }
 
+blocks : (Generator Int, List Int, Seed)
+blocks =
+  let g = int 1 10
+      (ls, s) = generateBlocks g (initialSeed 12345)
+  in (g, ls, s)
+
 startWorld : World
-startWorld = {
+startWorld =
+  let (blocksGenerator, blocksList, blocksSeed) = blocks
+  in {
     startx = 0
   , player = startPlayer
+  , blocksGenerator = blocksGenerator
+  , blocks = blocksList
+  , blocksSeed = blocksSeed
   }
+
+generateBlocks : Generator Int -> Seed -> (List Int, Seed)
+generateBlocks g s = generateBlocks' g s 16 []
+
+generateBlocks' : Generator Int -> Seed -> Int -> List Int -> (List Int, Seed)
+generateBlocks' g s n blocks =
+  if | n == 0 -> (blocks, s)
+     | otherwise -> let (blocks', s') = newBlock g s blocks
+                    in generateBlocks' g s' (n - 1) blocks'
+
+newBlock : Generator Int -> Seed -> List Int -> (List Int, Seed)
+newBlock g s blocks =
+  let (b, s') = generate g s
+  in (blocks ++ [b], s')
 
 type alias Arrows = {
     x : Int
@@ -89,6 +119,9 @@ step (dt, keys) =
 playerWidth = 20
 playerHeight = 28
 
+blockWidth = 20
+blockHeight = 20
+
 screenWidth  = 320
 screenHeight = 240
 
@@ -109,6 +142,12 @@ playerPicture =
       img = croppedImage (0, 20) playerWidth playerHeight url
   in toForm img
 
+blockPicture : Form
+blockPicture =
+  let url = "http://172.21.137.90:8000/tiles.png"
+      img = croppedImage (0, 0) blockWidth blockHeight url
+  in toForm img
+
 positionedPlayer : Player -> Form
 positionedPlayer p = playerPicture |> move (p.x, p.y)
 
@@ -122,9 +161,21 @@ renderWithBorder forms =
       formsWithBorder = [border] ++ forms
   in collage w h formsWithBorder
 
+renderedBlockColumn : Int -> Int -> Form
+renderedBlockColumn col n =
+  let x col = (toFloat <| (col - 8) * blockWidth) + (blockWidth / 2)
+      y i = (toFloat <| (i - 6) * blockHeight) - (blockWidth / 2)
+      pictures = map (\i -> blockPicture |> move (x col, y i)) [1..n]
+  in group pictures
+
+renderedBlocks : List Int -> Form
+renderedBlocks blocks =
+  group <| indexedMap renderedBlockColumn blocks
+
 render : World -> Element
 render w = renderWithBorder [
     bg,
+    renderedBlocks w.blocks,
     positionedPlayer w.player
   ]
 
