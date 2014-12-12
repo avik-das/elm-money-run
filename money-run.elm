@@ -24,8 +24,39 @@ startPlayer = {
   , vy = 0
   }
   
-isGrounded : Player -> Bool
-isGrounded { y } = y <= bottomY
+infixl 9 !!
+(!!) : List a -> Int -> a
+xs !! n  = head (drop n xs)
+
+xToColumn : Float -> (Int, Int)
+xToColumn x = 
+  let columnFloat = (x - (blockWidth / 2)) / blockWidth + 8
+  in (floor columnFloat, ceiling columnFloat)
+
+playerColumns : Player -> List Int -> (Int, Int)
+playerColumns {x} bs = 
+  let (lc, rc) = xToColumn x
+  in (bs !! lc, bs !! rc) 
+
+columnToY : Int -> Float
+columnToY c = (toFloat <| (c - 6) * blockHeight) - (blockWidth / 2)
+
+columnToHeight : Int -> Float
+columnToHeight c = columnToY c + (blockHeight / 2) + (playerHeight / 2)
+
+bottomBlockHeight : World -> Float
+bottomBlockHeight w =
+ let p = w.player
+     (lc, rc) = playerColumns p w.blocks
+     (lh, rh) = (columnToHeight lc, columnToHeight rc)
+ in (if lh <= rh then rh else lh)
+
+isGrounded : World -> Bool
+isGrounded w =
+   let p = w.player
+       (lc, rc) = playerColumns p w.blocks
+       (lh, rh) = (columnToHeight lc, columnToHeight rc)
+   in p.y <= lh || p.y <= rh
 
 type alias World = {
     startx : Float
@@ -92,9 +123,9 @@ walk : Arrows -> World -> World
 walk {x} = updatePlayer (\p -> { p | vx <- toFloat x })
 
 jump : Arrows -> World -> World
-jump {y} = updatePlayer
-  (\p -> { p | vy <- if | isGrounded p -> p.vy + 2.8 * toFloat y
-                        | otherwise -> p.vy })
+jump {y} w = updatePlayer
+  (\p -> { p | vy <- if | isGrounded w -> p.vy + 2.8 * toFloat y
+                        | otherwise -> p.vy }) w
 
 gravity : Float -> World -> World
 gravity dt = updatePlayer (\p -> { p | vy <- p.vy + g * dt })
@@ -102,12 +133,12 @@ gravity dt = updatePlayer (\p -> { p | vy <- p.vy + g * dt })
 updatedY : Float -> World -> Float
 updatedY dt w =
   let p = w.player
-  in if | isFallingThroughFloor w -> bottomY
+  in if | isFallingThroughFloor w -> bottomBlockHeight w
         | otherwise -> p.y +  p.vy * dvy * dt
 
 isFallingThroughFloor : World -> Bool
 isFallingThroughFloor w =
-  let p = w.player in isGrounded p && p.vy < 0
+  let p = w.player in isGrounded w && p.vy < 0
 
 physics : Float -> World -> World
 physics dt w = updatePlayer
@@ -169,7 +200,7 @@ renderWithBorder forms =
 renderedBlockColumn : Int -> Int -> Form
 renderedBlockColumn col n =
   let x col = (toFloat <| (col - 8) * blockWidth) + (blockWidth / 2)
-      y i = (toFloat <| (i - 6) * blockHeight) - (blockWidth / 2)
+      y i = columnToY i
       pictures = map (\i -> blockPicture |> move (x col, y i)) [1..n]
   in group pictures
 
