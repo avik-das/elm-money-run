@@ -84,7 +84,7 @@ startWorld =
   }
 
 generateBlocks : Generator Int -> Seed -> (List Int, Seed)
-generateBlocks g s = generateBlocks' g s 16 []
+generateBlocks g s = generateBlocks' g s 18 []
 
 generateBlocks' : Generator Int -> Seed -> Int -> List Int -> (List Int, Seed)
 generateBlocks' g s n blocks =
@@ -119,8 +119,20 @@ updatePlayer f w =
       p' = f p
   in { w | player <- p' }
 
+walkp : Arrows -> Player -> Player
+walkp {x} p =
+  let leftOfScreen  = p.x - playerWidth / 2 <= -screenWidth / 2
+      rightOfScreen = p.x + playerWidth / 2 >=  screenWidth / 2
+  in { p |
+    x <- if | leftOfScreen  -> -screenWidth / 2 + playerWidth / 2
+            | rightOfScreen ->  screenWidth / 2 - playerWidth / 2
+            | otherwise -> p.x,
+    vx <- if | leftOfScreen && x < 0 -> 0
+             | rightOfScreen && x > 0 -> 0
+             | otherwise -> toFloat x }
+
 walk : Arrows -> World -> World
-walk {x} = updatePlayer (\p -> { p | vx <- toFloat x })
+walk arrows = updatePlayer (walkp arrows)
 
 jump : Arrows -> World -> World
 jump {y} w = updatePlayer
