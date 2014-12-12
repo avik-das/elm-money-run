@@ -47,25 +47,40 @@ dvx = 1
 dvy = 1
 g = -9.8 / 300
 
-walk : Arrows -> Player -> Player
-walk {x} p = { p | vx <- toFloat x }
+updatePlayer : (Player -> Player) -> World -> World
+updatePlayer f w =
+  let p = w.player
+      p' = f p
+  in { w | player <- p' }
 
-jump : Arrows -> Player -> Player
-jump {y} p = { p | vy <- if isGrounded p then p.vy + 2.8 * toFloat y else p.vy }
+walk : Arrows -> World -> World
+walk {x} = updatePlayer (\p -> { p | vx <- toFloat x })
 
-gravity : Float -> Player -> Player
-gravity dt p = { p | vy <- p.vy + g * dt }
+jump : Arrows -> World -> World
+jump {y} = updatePlayer
+  (\p -> { p | vy <- if | isGrounded p -> p.vy + 2.8 * toFloat y
+                        | otherwise -> p.vy })
 
-updateY : Float -> Player -> Float
-updateY dt p = if isFallingThroughFloor p then bottomY else p.y +  p.vy * dvy * dt
+gravity : Float -> World -> World
+gravity dt = updatePlayer (\p -> { p | vy <- p.vy + g * dt })
 
-isFallingThroughFloor : Player -> Bool
-isFallingThroughFloor p = isGrounded p && p.vy < 0
+updatedY : Float -> World -> Float
+updatedY dt w =
+  let p = w.player
+  in if | isFallingThroughFloor w -> bottomY
+        | otherwise -> p.y +  p.vy * dvy * dt
 
-physics : Float -> Player -> Player
-physics dt p = { p | x <- p.x + p.vx * dvx * dt, y <- updateY dt p, vy <- if isFallingThroughFloor p then 0 else p.vy }
+isFallingThroughFloor : World -> Bool
+isFallingThroughFloor w =
+  let p = w.player in isGrounded p && p.vy < 0
 
-step : (Float, Arrows) -> Player -> Player
+physics : Float -> World -> World
+physics dt w = updatePlayer
+  (\p -> { p | x <- p.x + p.vx * dvx * dt,
+               y <- updatedY dt w,
+               vy <- if isFallingThroughFloor w then 0 else p.vy }) w
+
+step : (Float, Arrows) -> World -> World
 step (dt, keys) =
   walk keys >> jump keys >> gravity dt >> physics dt
 
@@ -107,10 +122,10 @@ renderWithBorder forms =
       formsWithBorder = [border] ++ forms
   in collage w h formsWithBorder
 
-render : Player -> Element
-render p = renderWithBorder [
+render : World -> Element
+render w = renderWithBorder [
     bg,
-    positionedPlayer p
+    positionedPlayer w.player
   ]
 
 -- MAIN ------------------------------------------------------------------------
@@ -123,5 +138,5 @@ input =
 
 main : Signal Element
 main =
-  let updates = Signal.foldp step startPlayer input
+  let updates = Signal.foldp step startWorld input
   in Signal.map render updates
