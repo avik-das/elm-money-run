@@ -45,23 +45,29 @@ type alias Arrows = {
 
 dvx = 1
 dvy = 1
-g = -9.8 / 500
+g = -9.8 / 300
 
 walk : Arrows -> Player -> Player
 walk {x} p = { p | vx <- toFloat x }
+
+jump : Arrows -> Player -> Player
+jump {y} p = { p | vy <- if isGrounded p then p.vy + 2.8 * toFloat y else p.vy }
 
 gravity : Float -> Player -> Player
 gravity dt p = { p | vy <- p.vy + g * dt }
 
 updateY : Float -> Player -> Float
-updateY dt p = if isGrounded p then bottomY else p.y +  p.vy * dvy * dt
+updateY dt p = if isFallingThroughFloor p then bottomY else p.y +  p.vy * dvy * dt
+
+isFallingThroughFloor : Player -> Bool
+isFallingThroughFloor p = isGrounded p && p.vy < 0
 
 physics : Float -> Player -> Player
-physics dt p = { p | x <- p.x + p.vx * dvx * dt, y <- updateY dt p }
+physics dt p = { p | x <- p.x + p.vx * dvx * dt, y <- updateY dt p, vy <- if isFallingThroughFloor p then 0 else p.vy }
 
 step : (Float, Arrows) -> Player -> Player
 step (dt, keys) =
-  walk keys >> gravity dt >> physics dt
+  walk keys >> jump keys >> gravity dt >> physics dt
 
 -- RENDERING -------------------------------------------------------------------
 
