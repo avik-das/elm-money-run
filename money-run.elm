@@ -21,6 +21,9 @@ startPlayer = {
   , vx = 0
   , vy = 0
   }
+  
+isGrounded : Player -> Bool
+isGrounded { y } = y <= bottomY
 
 type alias World = {
     startx : Float,
@@ -32,7 +35,7 @@ startWorld = {
     startx = 0
   , player = startPlayer
   }
-  
+
 type alias Arrows = {
     x : Int
   , y : Int
@@ -41,21 +44,34 @@ type alias Arrows = {
 -- STATE UPDATE ----------------------------------------------------------------
 
 dvx = 1
+dvy = 1
+g = -9.8 / 500
 
 walk : Arrows -> Player -> Player
 walk {x} p = { p | vx <- toFloat x }
 
+gravity : Float -> Player -> Player
+gravity dt p = { p | vy <- p.vy + g * dt }
+
+updateY : Float -> Player -> Float
+updateY dt p = if isGrounded p then bottomY else p.y +  p.vy * dvy * dt
+
 physics : Float -> Player -> Player
-physics dt p = { p | x <- p.x + p.vx * dvx * dt }
+physics dt p = { p | x <- p.x + p.vx * dvx * dt, y <- updateY dt p }
 
 step : (Float, Arrows) -> Player -> Player
 step (dt, keys) =
-  walk keys >> physics dt
+  walk keys >> gravity dt >> physics dt
 
 -- RENDERING -------------------------------------------------------------------
 
+playerWidth = 20
+playerHeight = 28
+
 screenWidth  = 320
 screenHeight = 240
+
+bottomY = -screenHeight / 2 + playerHeight / 2
 
 black : Color
 black = greyscale 0.5
@@ -69,7 +85,7 @@ bg =
 playerPicture : Form
 playerPicture =
   let url = "http://172.21.137.90:8000/tiles.png"
-      img = croppedImage (0, 20) 20 28 url
+      img = croppedImage (0, 20) playerWidth playerHeight url
   in toForm img
 
 positionedPlayer : Player -> Form
